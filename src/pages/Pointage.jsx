@@ -1,28 +1,34 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../utils/supabaseClient";
+import { useAuth } from "../context/AuthContext";
 
 export default function Pointage() {
   const [pointages, setPointages] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { currentUser } = useAuth();
 
   useEffect(() => {
-    fetchPointages();
-    const subscription = supabase
-      .channel('public:pointages')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pointages' }, fetchPointages)
-      .subscribe();
-    return () => { supabase.removeChannel(subscription); };
-  }, []);
+    if (currentUser) {
+      fetchPointages();
+    }
+  }, [currentUser]);
 
   async function fetchPointages() {
     setLoading(true);
-    const { data } = await supabase.from("pointages").select("*").order("date", { ascending: false });
+    const { data } = await supabase
+      .from("pointages")
+      .select("*")
+      .eq("user_id", currentUser.id)
+      .order("date", { ascending: false });
     setPointages(data || []);
     setLoading(false);
   }
 
   async function pointer() {
-    await supabase.from("pointages").insert([{ date: new Date().toISOString() }]);
+    await supabase.from("pointages").insert([
+      { date: new Date().toISOString(), user_id: currentUser.id }
+    ]);
+    fetchPointages();
   }
 
   return (
